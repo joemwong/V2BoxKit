@@ -39,6 +39,12 @@ class XrayConfigBuilder {
     if (outbounds.isEmpty) {
       throw const FormatException('节点没有生成可用的 Xray 出站配置');
     }
+    for (final outbound in outbounds) {
+      // libXray stores the share-link display name in sendThrough, while
+      // Xray-core interprets that field as a source address at runtime.
+      outbound.remove('sendThrough');
+    }
+
     outbounds.first['tag'] = 'proxy';
     outbounds.addAll([
       <String, Object?>{'tag': 'direct', 'protocol': 'freedom'},

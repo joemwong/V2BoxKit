@@ -96,6 +96,47 @@ void main() {
     );
   });
 
+  test('removes libXray outbound name metadata from runtime config', () {
+    final namedBase = <String, Object?>{
+      'outbounds': [
+        <String, Object?>{
+          'tag': 'generated',
+          'sendThrough': 'Node A',
+          'protocol': 'vless',
+          'settings': <String, Object?>{},
+        },
+        <String, Object?>{
+          'tag': 'generated-2',
+          'sendThrough': 'Node B',
+          'protocol': 'shadowsocks',
+          'settings': <String, Object?>{},
+        },
+      ],
+    };
+
+    final config = builder.build(namedBase, const RoutingSettings());
+    final outbounds = (config['outbounds']! as List).cast<Map>();
+
+    expect(
+      outbounds.take(2).every((item) => !item.containsKey('sendThrough')),
+      isTrue,
+    );
+    expect(outbounds.map((outbound) => outbound['tag']), [
+      'proxy',
+      'generated-2',
+      'direct',
+      'block',
+    ]);
+    expect(
+      (((namedBase['outbounds']! as List).first as Map)['sendThrough']),
+      'Node A',
+    );
+    expect(
+      (((namedBase['outbounds']! as List)[1] as Map)['sendThrough']),
+      'Node B',
+    );
+  });
+
   test('does not mutate the generated base configuration', () {
     builder.build(base, const RoutingSettings());
 
