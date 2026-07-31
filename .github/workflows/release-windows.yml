@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "windows-v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Windows release tag to update
+        required: true
+        default: "windows-v1.0.0"
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -30,7 +39,7 @@ jobs:
       - name: Package portable application
         shell: powershell
         run: |
-          $artifact = Join-Path $env:RUNNER_TEMP "V2BoxKit-$env:GITHUB_REF_NAME-windows-x64.zip"
+          $artifact = Join-Path $env:RUNNER_TEMP "V2BoxKit-$env:RELEASE_TAG-windows-x64.zip"
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath $artifact
           "ARTIFACT=$artifact" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Publish GitHub Release
@@ -38,13 +47,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: powershell
         run: |
-          $version = $env:GITHUB_REF_NAME.Replace("windows-v", "")
-          gh release view $env:GITHUB_REF_NAME 2>$null
+          $version = $env:RELEASE_TAG.Replace("windows-v", "")
+          gh release view $env:RELEASE_TAG 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:GITHUB_REF_NAME $env:ARTIFACT --clobber
+            gh release upload $env:RELEASE_TAG $env:ARTIFACT --clobber
             exit 0
           }
-          gh release create $env:GITHUB_REF_NAME $env:ARTIFACT `
+          gh release create $env:RELEASE_TAG $env:ARTIFACT `
             --title "V2BoxKit Windows $version" `
-            --notes "Windows x64 portable MVP build. Run v2boxkit_client.exe and approve the administrator prompt required by Wintun." `
+            --notes "Windows x64 portable MVP build. Run v2boxkit_client.exe as administrator so Wintun can create the tunnel adapter." `
             --prerelease
