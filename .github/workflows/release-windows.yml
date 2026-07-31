@@ -39,6 +39,11 @@ jobs:
         shell: powershell
         run: |
           $version = $env:GITHUB_REF_NAME.Replace("windows-v", "")
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME $env:ARTIFACT --clobber
+            exit 0
+          }
           gh release create $env:GITHUB_REF_NAME $env:ARTIFACT `
             --title "V2BoxKit Windows $version" `
             --notes "Windows x64 portable MVP build. Run v2boxkit_client.exe and approve the administrator prompt required by Wintun." `
