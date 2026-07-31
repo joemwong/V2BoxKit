@@ -305,7 +305,7 @@ class AppController extends ChangeNotifier {
         throw StateError('用户未授予 VPN 权限');
       }
       final converted = await _bridge.invoke('convertShareLinksToXrayJson', {
-        'text': node.rawUri,
+        'text': _parser.normalizeRuntimeUri(node.rawUri),
       });
       converted.requireSuccess();
       if (converted.data is! Map) {
@@ -359,7 +359,7 @@ class AppController extends ChangeNotifier {
     File? temporaryFile;
     try {
       final converted = await _bridge.invoke('convertShareLinksToXrayJson', {
-        'text': node.rawUri,
+        'text': _parser.normalizeRuntimeUri(node.rawUri),
       });
       converted.requireSuccess();
       final base = (converted.data! as Map).cast<String, Object?>();
@@ -374,13 +374,13 @@ class AppController extends ChangeNotifier {
         'timeout': 5,
         'url': 'https://cp.cloudflare.com/',
       });
+      response.requireSuccess();
       if (response.data is Map) {
         delay = ((response.data! as Map)['delay'] as num?)?.toInt() ?? 10000;
-      } else {
-        response.requireSuccess();
       }
-    } catch (_) {
+    } catch (error) {
       delay = 10000;
+      _lastMessage = '节点“${node.name}”测速失败：$error';
     } finally {
       if (temporaryFile != null && await temporaryFile.exists()) {
         await temporaryFile.delete();
