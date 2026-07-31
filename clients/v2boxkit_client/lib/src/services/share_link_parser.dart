@@ -58,6 +58,77 @@ class ShareLinkParser {
     };
   }
 
+  String normalizeRuntimeUri(String input) {
+    final rawUri = input.trim();
+    final separator = rawUri.indexOf('://');
+    if (separator <= 0) return rawUri;
+
+    final scheme = rawUri.substring(0, separator).toLowerCase();
+    final normalized = '$scheme://${rawUri.substring(separator + 3)}'
+        .replaceAll('&amp;', '&');
+    return switch (scheme) {
+      'vmess' => _normalizeLegacyVmess(normalized),
+      'ss' => _normalizeLegacyShadowsocks(normalized),
+      _ => normalized,
+    };
+  }
+
+  String _normalizeLegacyVmess(String rawUri) {
+    final body = rawUri.substring('vmess://'.length);
+    final fragmentIndex = body.indexOf('#');
+    if (fragmentIndex < 0) return rawUri;
+
+    final payload = body.substring(0, fragmentIndex);
+    final decoded = _decodeBase64(Uri.decodeComponent(payload));
+    if (decoded == null) return rawUri;
+    try {
+      final object = jsonDecode(decoded);
+      if (object is Map && object['add'] != null && object['id'] != null) {
+        // libXray treats the fragment as part of the legacy Base64 payload.
+        // The display name is already stored on ProxyNode, so omit it here.
+        return 'vmess://$payload';
+      }
+    } on FormatException {
+      return rawUri;
+    }
+    return rawUri;
+  }
+
+  String _normalizeLegacyShadowsocks(String rawUri) {
+    final body = rawUri.substring('ss://'.length);
+    final fragmentIndex = body.indexOf('#');
+    final payload = fragmentIndex < 0 ? body : body.substring(0, fragmentIndex);
+    if (payload.contains('@')) return rawUri;
+
+    final decoded = _decodeBase64(Uri.decodeComponent(payload));
+    if (decoded == null) return rawUri;
+    final at = decoded.lastIndexOf('@');
+    if (at <= 0 || at == decoded.length - 1) return rawUri;
+    final credentials = decoded.substring(0, at);
+    final credentialSeparator = credentials.indexOf(':');
+    if (credentialSeparator <= 0) return rawUri;
+
+    final method = credentials.substring(0, credentialSeparator);
+    final password = credentials.substring(credentialSeparator + 1);
+    final endpoint = Uri.tryParse(
+      'ss://placeholder@${decoded.substring(at + 1)}',
+    );
+    if (endpoint == null ||
+        endpoint.host.isEmpty ||
+        !_isValidPort(endpoint.port)) {
+      return rawUri;
+    }
+
+    final host = endpoint.host.contains(':')
+        ? '[${endpoint.host}]'
+        : endpoint.host;
+    final userInfo =
+        '${Uri.encodeComponent(method)}:'
+        '${Uri.encodeComponent(password)}';
+    final fragment = fragmentIndex < 0 ? '' : body.substring(fragmentIndex);
+    return 'ss://$userInfo@$host:${endpoint.port}$fragment';
+  }
+
   ProxyNode _parseVmess(String rawUri, String? sourceId, String groupName) {
     final payload = rawUri.substring('vmess://'.length).split('#').first;
     final decoded = _decodeBase64(payload);
