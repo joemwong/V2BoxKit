@@ -1,0 +1,100 @@
+name: V2BoxKit
+options:
+  minimumXcodeGenVersion: 2.45.4
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CLANG_ENABLE_MODULES: YES
+
+targets:
+  V2BoxKit:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/App
+      - path: Sources/Shared
+    info:
+      path: Config/V2BoxKit-Info.plist
+      properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.example.V2BoxKit.subscription-refresh
+        CFBundleDisplayName: V2BoxKit
+        CFBundleURLTypes:
+          - CFBundleURLName: com.example.V2BoxKit.import
+            CFBundleURLSchemes:
+              - v2boxkit
+        NSCameraUsageDescription: 扫描代理节点二维码并导入配置。
+        NSLocalNetworkUsageDescription: 允许将经过认证的本地代理分享给同一局域网内的设备。
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UIBackgroundModes:
+          - fetch
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKit
+        PRODUCT_NAME: V2BoxKit
+        CODE_SIGN_ENTITLEMENTS: Config/V2BoxKit.entitlements
+    dependencies:
+      - target: PacketTunnel
+        embed: true
+      - framework: Vendor/LibXray.xcframework
+        embed: false
+
+  PacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/PacketTunnel
+      - path: Sources/Shared/AppConstants.swift
+      - path: Sources/Shared/Models
+      - path: Sources/Shared/XrayConfigBuilder.swift
+      - path: Sources/Shared/Diagnostics
+      - path: Sources/Shared/LibXrayInvoker.swift
+    info:
+      path: Config/PacketTunnel-Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKit.PacketTunnel
+        PRODUCT_NAME: PacketTunnel
+        CODE_SIGN_ENTITLEMENTS: Config/PacketTunnel.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        DEAD_CODE_STRIPPING: NO
+    dependencies:
+      - framework: Vendor/LibXray.xcframework
+        embed: false
+
+  V2BoxKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKitTests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: V2BoxKit
+
+schemes:
+  V2BoxKit:
+    build:
+      targets:
+        V2BoxKit: all
+        PacketTunnel: all
+        V2BoxKitTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - name: V2BoxKitTests
+    archive:
+      config: Release

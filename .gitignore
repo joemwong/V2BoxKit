@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+Vendor/
+artifacts/
+clients/v2boxkit_client/.dart_tool/
+clients/v2boxkit_client/build/
+clients/v2boxkit_client/android/.gradle/
+clients/v2boxkit_client/android/app/libs/*.aar
+clients/v2boxkit_client/windows/flutter/ephemeral/
+clients/v2boxkit_client/windows/native/
