@@ -33,6 +33,45 @@ void main() {
       expect(nodes.single.endpoint, 'sg.example.com:8443');
       expect(nodes.single.sourceId, 'subscription-1');
     });
+
+    test('normalizes legacy VMess fragments for libXray', () {
+      final payload = base64Encode(
+        utf8.encode(
+          jsonEncode({
+            'v': '2',
+            'ps': 'Singapore',
+            'add': 'sg.example.com',
+            'port': '8443',
+            'id': '00000000-0000-4000-8000-000000000000',
+          }),
+        ),
+      );
+
+      expect(
+        parser.normalizeRuntimeUri('vmess://$payload#Singapore'),
+        'vmess://$payload',
+      );
+    });
+
+    test('normalizes legacy Shadowsocks Base64 for libXray', () {
+      final payload = base64Url
+          .encode(utf8.encode('aes-256-gcm:p@ss:word@example.com:8388'))
+          .replaceAll('=', '');
+
+      expect(
+        parser.normalizeRuntimeUri('ss://$payload#Tokyo'),
+        'ss://aes-256-gcm:p%40ss%3Aword@example.com:8388#Tokyo',
+      );
+    });
+
+    test('normalizes schemes and HTML encoded query separators', () {
+      expect(
+        parser.normalizeRuntimeUri(
+          'VLESS://id@example.com:443?security=tls&amp;type=ws#Tokyo',
+        ),
+        'vless://id@example.com:443?security=tls&type=ws#Tokyo',
+      );
+    });
   });
 
   test('AppSnapshot JSON round trip preserves P1 settings', () {
