@@ -1,7 +1,7 @@
 name: v2boxkit_client
 description: "V2BoxKit client for Android and Windows."
 publish_to: "none"
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.12.2

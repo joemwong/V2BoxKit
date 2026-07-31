@@ -43,6 +43,19 @@ class XrayConfigBuilder {
       // libXray stores the share-link display name in sendThrough, while
       // Xray-core interprets that field as a source address at runtime.
       outbound.remove('sendThrough');
+
+      // libXray emits server-only REALITY fields with null values. Xray-core
+      // treats their presence as server mode even though this is a client.
+      final streamSettings = outbound['streamSettings'];
+      if (streamSettings is! Map) continue;
+      final realitySettings = streamSettings['realitySettings'];
+      if (realitySettings is! Map) continue;
+      for (final field in const ['target', 'dest']) {
+        if (realitySettings.containsKey(field) &&
+            realitySettings[field] == null) {
+          realitySettings.remove(field);
+        }
+      }
     }
 
     outbounds.first['tag'] = 'proxy';

@@ -137,6 +137,48 @@ void main() {
     );
   });
 
+  test('removes null server-only fields from REALITY client settings', () {
+    final realityBase = <String, Object?>{
+      'outbounds': [
+        <String, Object?>{
+          'tag': 'generated',
+          'protocol': 'vless',
+          'settings': <String, Object?>{},
+          'streamSettings': <String, Object?>{
+            'security': 'reality',
+            'realitySettings': <String, Object?>{
+              'target': null,
+              'dest': null,
+              'serverName': 'example.com',
+              'publicKey': 'test-public-key',
+              'shortId': '0123456789abcdef',
+            },
+          },
+        },
+      ],
+    };
+
+    final config = builder.build(realityBase, const RoutingSettings());
+    final outbound = ((config['outbounds']! as List).first as Map);
+    final streamSettings = outbound['streamSettings'] as Map;
+    final realitySettings = streamSettings['realitySettings'] as Map;
+
+    expect(realitySettings.containsKey('target'), isFalse);
+    expect(realitySettings.containsKey('dest'), isFalse);
+    expect(realitySettings['serverName'], 'example.com');
+    expect(realitySettings['publicKey'], 'test-public-key');
+    expect(realitySettings['shortId'], '0123456789abcdef');
+
+    final originalOutbound = ((realityBase['outbounds']! as List).first as Map);
+    final originalStreamSettings = originalOutbound['streamSettings'] as Map;
+    final originalRealitySettings =
+        originalStreamSettings['realitySettings'] as Map;
+    expect(originalRealitySettings.containsKey('target'), isTrue);
+    expect(originalRealitySettings['target'], isNull);
+    expect(originalRealitySettings.containsKey('dest'), isTrue);
+    expect(originalRealitySettings['dest'], isNull);
+  });
+
   test('does not mutate the generated base configuration', () {
     builder.build(base, const RoutingSettings());
 

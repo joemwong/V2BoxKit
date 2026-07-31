@@ -9,7 +9,7 @@ on:
       release_tag:
         description: Existing Windows release tag to update
         required: true
-        default: "windows-v1.0.2"
+        default: "windows-v1.0.3"
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
