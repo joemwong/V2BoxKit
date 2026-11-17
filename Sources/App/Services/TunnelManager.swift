@@ -1,6 +1,12 @@
 import Combine
-import Foundation
-import NetworkExtension
+@preconcurrency import Foundation
+@preconcurrency import NetworkExtension
+
+/// Bridges the legacy callback result into `TunnelManager`'s main-actor context.
+/// The managers are only accessed after the continuation resumes on that actor.
+private struct TunnelManagerList: @unchecked Sendable {
+  let managers: [NETunnelProviderManager]
+}
 
 @MainActor
 final class TunnelManager: ObservableObject {
@@ -191,19 +197,21 @@ final class TunnelManager: ObservableObject {
   }
 
   private func loadAllManagers() async throws -> [NETunnelProviderManager] {
-    try await withCheckedThrowingContinuation { continuation in
+    let result: TunnelManagerList = try await withCheckedThrowingContinuation(isolation: MainActor.shared) {
+      (continuation: CheckedContinuation<TunnelManagerList, any Error>) in
       NETunnelProviderManager.loadAllFromPreferences { managers, error in
         if let error {
           continuation.resume(throwing: error)
         } else {
-          continuation.resume(returning: managers ?? [])
+          continuation.resume(returning: TunnelManagerList(managers: managers ?? []))
         }
       }
     }
+    return result.managers
   }
 
   private func save(_ manager: NETunnelProviderManager) async throws {
-    try await withCheckedThrowingContinuation { continuation in
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
       manager.saveToPreferences { error in
         if let error {
           continuation.resume(throwing: error)
@@ -215,7 +223,7 @@ final class TunnelManager: ObservableObject {
   }
 
   private func load(_ manager: NETunnelProviderManager) async throws {
-    try await withCheckedThrowingContinuation { continuation in
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
       manager.loadFromPreferences { error in
         if let error {
           continuation.resume(throwing: error)

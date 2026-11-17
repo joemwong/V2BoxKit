@@ -22,10 +22,10 @@ targets:
       path: Config/V2BoxKit-Info.plist
       properties:
         BGTaskSchedulerPermittedIdentifiers:
-          - com.example.V2BoxKit.subscription-refresh
+          - top.ddddd.v2boxkit.subscription-refresh
         CFBundleDisplayName: V2BoxKit
         CFBundleURLTypes:
-          - CFBundleURLName: com.example.V2BoxKit.import
+          - CFBundleURLName: top.ddddd.v2boxkit.import
             CFBundleURLSchemes:
               - v2boxkit
         NSCameraUsageDescription: 扫描代理节点二维码并导入配置。
@@ -35,11 +35,24 @@ targets:
         UIBackgroundModes:
           - fetch
         UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKit
+        PRODUCT_BUNDLE_IDENTIFIER: top.ddddd.v2boxkit
         PRODUCT_NAME: V2BoxKit
         CODE_SIGN_ENTITLEMENTS: Config/V2BoxKit.entitlements
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lresolv"
     dependencies:
       - target: PacketTunnel
         embed: true
@@ -51,6 +64,7 @@ targets:
     platform: iOS
     sources:
       - path: Sources/PacketTunnel
+      - path: Sources/App/Services/ShareLinkParser.swift
       - path: Sources/Shared/AppConstants.swift
       - path: Sources/Shared/Models
       - path: Sources/Shared/XrayConfigBuilder.swift
@@ -58,14 +72,21 @@ targets:
       - path: Sources/Shared/LibXrayInvoker.swift
     info:
       path: Config/PacketTunnel-Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKit.PacketTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: top.ddddd.v2boxkit.PacketTunnel
         PRODUCT_NAME: PacketTunnel
         CODE_SIGN_ENTITLEMENTS: Config/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
         DEAD_CODE_STRIPPING: NO
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lresolv"
     dependencies:
       - framework: Vendor/LibXray.xcframework
         embed: false
@@ -77,7 +98,7 @@ targets:
       - path: Tests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.V2BoxKitTests
+        PRODUCT_BUNDLE_IDENTIFIER: top.ddddd.v2boxkitTests
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: V2BoxKit

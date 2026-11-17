@@ -66,33 +66,64 @@ enum ShareLinkParser {
   }
 
   private static func parseShadowsocks(_ rawURI: String) throws -> ProxyNode {
-    if let node = try? parseURLBased(rawURI, kind: .shadowsocks) {
-      return node
-    }
-
-    let payload = String(rawURI.dropFirst("ss://".count)).components(separatedBy: "#")[0]
-    guard let data = decodeBase64(payload),
-      let decoded = String(data: data, encoding: .utf8),
-      let at = decoded.lastIndex(of: "@"),
-      let colon = decoded[decoded.index(after: at)...].lastIndex(of: ":"),
-      let port = Int(decoded[decoded.index(after: colon)...])
-    else {
-      throw ParserError.malformedLink
-    }
-    let host = String(decoded[decoded.index(after: at)..<colon])
-    let name = fragmentName(rawURI) ?? host
-    return ProxyNode(name: name, kind: .shadowsocks, host: host, port: port, rawURI: rawURI)
+    try parseURLBased(rawURI, kind: .shadowsocks, endpointURI: runtimeLink(rawURI))
   }
 
-  private static func parseURLBased(_ rawURI: String, kind: ProxyProtocol) throws -> ProxyNode {
-    guard let components = URLComponents(string: rawURI),
+  /// Normalize at the point of use as well as import: saved nodes retain their original URI.
+  static func runtimeLink(_ rawURI: String) throws -> String {
+    let link = rawURI.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let separator = link.range(of: "://") else { throw ParserError.malformedLink }
+    let scheme = link[..<separator.lowerBound].lowercased()
+    // A fragment is a display label. libXray otherwise decodes it as part of legacy VMess Base64.
+    let body = link[separator.upperBound...].prefix { $0 != "#" }
+    let address = body.prefix { $0 != "?" }
+    let query = body[address.endIndex...].replacingOccurrences(of: "&amp;", with: "&")
+    if scheme == "ss" {
+      return "ss://\(try shadowsocksAddress(address))\(query)"
+    }
+    if scheme == "vmess", !address.contains("@"), let json = decodeBase64(String(address)) {
+      return "vmess://\(json.base64EncodedString())"
+    }
+    return "\(scheme)://\(address)\(query)"
+  }
+
+  private static func shadowsocksAddress(_ address: Substring) throws -> String {
+    let credentials: String
+    let endpoint: Substring
+    if let at = address.lastIndex(of: "@") {
+      let userInfo = address[..<at]
+      // SIP002 already encodes userinfo. Some producers instead emit method:password in clear.
+      guard userInfo.contains(":") else { return String(address) }
+      guard let decoded = userInfo.removingPercentEncoding else { throw ParserError.malformedLink }
+      credentials = decoded
+      endpoint = address[address.index(after: at)...]
+    } else {
+      // Legacy SS puts method:password@host:port inside a single Base64 payload.
+      guard let bytes = decodeBase64(String(address)), let plain = String(data: bytes, encoding: .utf8),
+        let at = plain.lastIndex(of: "@")
+      else { throw ParserError.malformedLink }
+      credentials = String(plain[..<at])
+      endpoint = plain[plain.index(after: at)...]
+    }
+    guard credentials.contains(":"), !endpoint.isEmpty else { throw ParserError.malformedLink }
+    let userInfo = Data(credentials.utf8).base64EncodedString()
+      .replacingOccurrences(of: "+", with: "-")
+      .replacingOccurrences(of: "/", with: "_")
+      .replacingOccurrences(of: "=", with: "")
+    return "\(userInfo)@\(endpoint)"
+  }
+
+  private static func parseURLBased(
+    _ rawURI: String, kind: ProxyProtocol, endpointURI: String? = nil
+  ) throws -> ProxyNode {
+    guard let components = URLComponents(string: endpointURI ?? rawURI),
       let host = components.host?.nilIfEmpty,
       let port = components.port,
       (1...65_535).contains(port)
     else {
       throw ParserError.malformedLink
     }
-    let name = components.fragment?.removingPercentEncoding?.nilIfEmpty ?? host
+    let name = fragmentName(rawURI) ?? host
     return ProxyNode(name: name, kind: kind, host: host, port: port, rawURI: rawURI)
   }
 
@@ -112,7 +143,7 @@ enum ShareLinkParser {
   private static func decodeBase64(_ value: String) -> Data? {
     let withoutFragment = value.components(separatedBy: "#")[0]
     var normalized =
-      withoutFragment
+      (withoutFragment.removingPercentEncoding ?? withoutFragment)
       .replacingOccurrences(of: "-", with: "+")
       .replacingOccurrences(of: "_", with: "/")
       .filter { !$0.isWhitespace }

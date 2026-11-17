@@ -12,7 +12,7 @@ struct AddLinkSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("分享链接") {
+        Section {
           TextEditor(text: $text)
             .frame(minHeight: 180)
             .textInputAutocapitalization(.never)
@@ -26,6 +26,8 @@ struct AddLinkSheet: View {
               scansQRCode = true
             }
           }
+        } header: {
+          Text("分享链接")
         } footer: {
           Text("每行一个链接，支持 VLESS、VMess、Trojan、Shadowsocks 和 Hysteria 2。")
         }

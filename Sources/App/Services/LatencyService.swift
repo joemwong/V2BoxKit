@@ -15,13 +15,7 @@ actor LatencyService {
         throw LibXrayInvoker.InvocationError.malformedResponse
       }
 
-      let converted = try LibXrayInvoker.invoke(
-        method: "convertShareLinksToXrayJson",
-        payload: ["text": node.rawURI]
-      )
-      guard var configuration = converted as? [String: Any] else {
-        throw LibXrayInvoker.InvocationError.malformedResponse
-      }
+      var configuration = try LibXrayInvoker.configuration(forShareLink: node.rawURI)
       configuration["log"] = ["loglevel": "warning"]
       configuration["inbounds"] = [
         [

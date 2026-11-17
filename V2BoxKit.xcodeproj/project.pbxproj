@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		ACDC8691A0CF496799C38EAF /* LibXrayCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7C5FA270B74C8B81DAEE84 /* LibXrayCompatibilityTests.swift */; };
+		213F8D5CCED545BAA3149EB3 /* ShareLinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BEAC573B3C7125E258EC66 /* ShareLinkParser.swift */; };
 		09F6488CA0C997F38BDB393B /* OnDemandSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF82A4369CEFC708BD6470B3 /* OnDemandSettingsView.swift */; };
 		0D47AE5B01D3561DF2ECDC01 /* AddLinkSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FEC2428B54F735FDE4BC1B /* AddLinkSheet.swift */; };
 		0F3FE74281F7891E124465A0 /* ProxyNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1E5CCF8BE687A317BE077F /* ProxyNode.swift */; };
@@ -92,6 +94,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		6E7C5FA270B74C8B81DAEE84 /* LibXrayCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibXrayCompatibilityTests.swift; sourceTree = "<group>"; };
 		06BEAC573B3C7125E258EC66 /* ShareLinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareLinkParser.swift; sourceTree = "<group>"; };
 		09EE6C72AE9B56B4F1F85D1D /* CloudSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncService.swift; sourceTree = "<group>"; };
 		0F03D3CF5BFA3CFC83F0BF59 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
@@ -239,6 +242,7 @@
 			isa = PBXGroup;
 			children = (
 				D147CB89F2433559580EDED4 /* ModelsTests.swift */,
+				6E7C5FA270B74C8B81DAEE84 /* LibXrayCompatibilityTests.swift */,
 				8F7D2AAC3D148FD4F02ABD13 /* ShareLinkParserTests.swift */,
 				DD3BDCDE790BB78CADE0E0BA /* XrayConfigBuilderTests.swift */,
 			);
@@ -399,6 +403,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0FC21E8D23FDE0292BAA9A77 /* ModelsTests.swift in Sources */,
+				ACDC8691A0CF496799C38EAF /* LibXrayCompatibilityTests.swift in Sources */,
 				20FC51F36CD4FEB9682F157A /* ShareLinkParserTests.swift in Sources */,
 				687D0CD5927F6686D9FBD2F8 /* XrayConfigBuilderTests.swift in Sources */,
 			);
@@ -454,6 +459,7 @@
 				894ADEA1745179A7D1BB9A85 /* ConfigurationArchive.swift in Sources */,
 				7533FEE97CEEBA210B18008A /* DiagnosticLogStore.swift in Sources */,
 				103C08F612E30E9DE6EE1572 /* LibXrayInvoker.swift in Sources */,
+				213F8D5CCED545BAA3149EB3 /* ShareLinkParser.swift in Sources */,
 				57D8756F695F31237F3C2250 /* PacketTunnelProvider.swift in Sources */,
 				BBCB55A7CF7B8BA7A3AD8411 /* ProxyNode.swift in Sources */,
 				3BFDA9E9702BCD3D085E099B /* RoutingSettings.swift in Sources */,
@@ -489,13 +495,17 @@
 					"$(inherited)",
 					"\"Vendor\"",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				INFOPLIST_FILE = "Config/PacketTunnel-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKit.PacketTunnel;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkit.PacketTunnel;
 				PRODUCT_NAME = PacketTunnel;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -513,7 +523,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkitTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/V2BoxKit.app/V2BoxKit";
@@ -589,12 +599,16 @@
 					"$(inherited)",
 					"\"Vendor\"",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				INFOPLIST_FILE = "Config/V2BoxKit-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKit;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkit;
 				PRODUCT_NAME = V2BoxKit;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -611,13 +625,17 @@
 					"$(inherited)",
 					"\"Vendor\"",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				INFOPLIST_FILE = "Config/PacketTunnel-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKit.PacketTunnel;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkit.PacketTunnel;
 				PRODUCT_NAME = PacketTunnel;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -635,12 +653,16 @@
 					"$(inherited)",
 					"\"Vendor\"",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				INFOPLIST_FILE = "Config/V2BoxKit-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKit;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkit;
 				PRODUCT_NAME = V2BoxKit;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -657,7 +679,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.V2BoxKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = top.ddddd.v2boxkitTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/V2BoxKit.app/V2BoxKit";

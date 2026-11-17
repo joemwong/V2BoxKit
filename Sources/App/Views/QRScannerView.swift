@@ -22,7 +22,7 @@ struct QRScannerView: UIViewControllerRepresentable {
   }
 }
 
-final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+final class ScannerViewController: UIViewController, @MainActor AVCaptureMetadataOutputObjectsDelegate {
   var onResult: ((String) -> Void)?
   private let session = AVCaptureSession()
   private var previewLayer: AVCaptureVideoPreviewLayer?

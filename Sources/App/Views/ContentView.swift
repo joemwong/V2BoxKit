@@ -155,7 +155,7 @@ private struct NodeRow: View {
       } else {
         Text(node.latencyText)
           .font(.caption.monospacedDigit())
-          .foregroundStyle((node.latencyMilliseconds ?? 10_000) < 1_000 ? .green : .secondary)
+          .foregroundStyle((node.latencyMilliseconds ?? 10_000) < 1_000 ? Color.green : Color.secondary)
       }
     }
     .padding(.vertical, 3)
