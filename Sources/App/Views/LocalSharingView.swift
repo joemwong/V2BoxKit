@@ -33,13 +33,15 @@ struct LocalSharingView: View {
         }
       }
 
-      Section("连接信息") {
+      Section {
         LabeledContent("监听地址", value: nodeStore.routing.localSharing.listenAddress)
         if nodeStore.routing.localSharing.allowLocalNetwork {
           LabeledContent("Wi-Fi 地址", value: LocalNetworkAddressResolver.wiFiIPv4 ?? "未连接 Wi-Fi")
         }
         LabeledContent("SOCKS5", value: String(nodeStore.routing.localSharing.socksPort))
         LabeledContent("HTTP", value: String(nodeStore.routing.localSharing.httpPort))
+      } header: {
+        Text("连接信息")
       } footer: {
         Text("修改后重新连接 VPN 生效。允许局域网访问时，请只在可信网络使用并保留强密码。")
       }

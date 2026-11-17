@@ -35,7 +35,7 @@ struct SettingsView: View {
         }
 
         if nodeStore.routing.mode == .rule {
-          Section("规则") {
+          Section {
             Toggle("绕过局域网和私有地址", isOn: $nodeStore.routing.bypassPrivateNetworks)
             NavigationLink("自定义规则（\(nodeStore.routing.customRules.count)）") {
               RoutingRulesView()
@@ -44,12 +44,14 @@ struct SettingsView: View {
               .frame(minHeight: 100)
               .textInputAutocapitalization(.never)
               .autocorrectionDisabled()
+          } header: {
+            Text("规则")
           } footer: {
             Text("上方自定义规则优先匹配；文本框每行一个需要直连的域名。")
           }
         }
 
-        Section("DNS") {
+        Section {
           Picker("协议", selection: $nodeStore.routing.dns.mode) {
             ForEach(DNSMode.allCases) { mode in Text(mode.title).tag(mode) }
           }
@@ -64,6 +66,8 @@ struct SettingsView: View {
             TextField("引导 DNS，例如 1.1.1.1", text: $nodeStore.routing.dns.fallbackServer)
               .keyboardType(.numbersAndPunctuation)
           }
+        } header: {
+          Text("DNS")
         } footer: {
           Text("DoH/DoT 由 iOS 隧道 DNS 设置加密；引导 DNS 仅用于解析加密 DNS 主机名。")
         }

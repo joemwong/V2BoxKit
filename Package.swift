@@ -44,6 +44,7 @@ let package = Package(
       name: "V2BoxCoreTests",
       dependencies: ["V2BoxCore"],
       path: "Tests",
+      exclude: ["LibXrayCompatibilityTests.swift"], // Exercises the vendored core in the app test target.
       sources: [
         "ModelsTests.swift",
         "ShareLinkParserTests.swift",

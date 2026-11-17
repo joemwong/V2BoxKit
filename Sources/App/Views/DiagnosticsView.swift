@@ -19,13 +19,13 @@ struct DiagnosticsView: View {
           }
           ForEach(checks) { check in
             LabeledContent {
-              Text(check.result).foregroundStyle(check.succeeded ? .secondary : .red)
+              Text(check.result).foregroundStyle(check.succeeded ? Color.secondary : Color.red)
             } label: {
               Label(
                 check.name,
                 systemImage: check.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill"
               )
-              .foregroundStyle(check.succeeded ? .green : .red)
+              .foregroundStyle(check.succeeded ? Color.green : Color.red)
             }
           }
         }
@@ -46,8 +46,10 @@ struct DiagnosticsView: View {
             events = []
           }
         }
-        Section("恢复") {
+        Section {
           Button("重置应用与 VPN 配置", role: .destructive) { confirmsReset = true }
+        } header: {
+          Text("恢复")
         } footer: {
           Text("将删除本机节点、订阅、规则、日志和系统 VPN 配置，不影响订阅服务端数据。")
         }

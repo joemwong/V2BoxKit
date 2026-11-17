@@ -16,11 +16,13 @@ struct SubscriptionSheet: View {
         Section("名称") {
           TextField("例如：机场订阅", text: $name)
         }
-        Section("订阅地址") {
+        Section {
           TextField("https://example.com/subscription", text: $urlText)
             .keyboardType(.URL)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+        } header: {
+          Text("订阅地址")
         } footer: {
           Text("支持普通文本或 Base64 节点列表。更新失败时继续使用上一次成功的节点。")
         }

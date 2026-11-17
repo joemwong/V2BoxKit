@@ -8,9 +8,9 @@
     </array>
     <key>com.apple.security.application-groups</key>
     <array>
-        <string>group.com.example.V2BoxKit</string>
+        <string>group.top.ddddd.v2boxkit</string>
     </array>
     <key>com.apple.developer.ubiquity-kvstore-identifier</key>
-    <string>$(TeamIdentifierPrefix)com.example.V2BoxKit</string>
+    <string>$(TeamIdentifierPrefix)top.ddddd.v2boxkit</string>
 </dict>
 </plist>

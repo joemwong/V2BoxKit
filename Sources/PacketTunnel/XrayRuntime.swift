@@ -1,8 +1,8 @@
 import Foundation
 
 final class XrayRuntime {
-  func convertShareLink(_ link: String) throws -> Any {
-    try LibXrayInvoker.invoke(method: "convertShareLinksToXrayJson", payload: ["text": link])
+  func convertShareLink(_ link: String) throws -> [String: Any] {
+    try LibXrayInvoker.configuration(forShareLink: link)
   }
 
   func run(configurationJSON: String) throws {

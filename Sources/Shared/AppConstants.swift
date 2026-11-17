@@ -1,10 +1,10 @@
 import Foundation
 
 enum AppConstants {
-  static let appGroupIdentifier = "group.com.example.V2BoxKit"
-  static let tunnelBundleIdentifier = "com.example.V2BoxKit.PacketTunnel"
+  static let appGroupIdentifier = "group.top.ddddd.v2boxkit"
+  static let tunnelBundleIdentifier = "top.ddddd.v2boxkit.PacketTunnel"
   static let vpnDescription = "V2BoxKit"
-  static let backgroundRefreshIdentifier = "com.example.V2BoxKit.subscription-refresh"
+  static let backgroundRefreshIdentifier = "top.ddddd.v2boxkit.subscription-refresh"
   static let importURLScheme = "v2boxkit"
 
   static let nodesStorageKey = "storedNodes"

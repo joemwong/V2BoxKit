@@ -16,17 +16,19 @@ struct BackupView: View {
 
   var body: some View {
     Form {
-      Section("文件备份") {
+      Section {
         SecureField("导出密码（可留空）", text: $exportPassword)
         Button("导出 .v2boxkit 备份", systemImage: "square.and.arrow.up") {
           Task { await prepareExport() }
         }
         .disabled(isWorking)
+      } header: {
+        Text("文件备份")
       } footer: {
         Text("设置密码后使用 AES-GCM 加密；请妥善保存密码，应用无法找回。")
       }
 
-      Section("文件恢复") {
+      Section {
         Button("选择备份文件", systemImage: "square.and.arrow.down") {
           isImporting = true
         }
@@ -35,11 +37,13 @@ struct BackupView: View {
           Button("校验并恢复") { Task { await restorePendingImport() } }
             .disabled(isWorking)
         }
+      } header: {
+        Text("文件恢复")
       } footer: {
         Text("恢复会替换当前节点、订阅、路由和应用设置。建议先导出当前配置。")
       }
 
-      Section("iCloud") {
+      Section {
         Toggle("配置变更后自动备份", isOn: $nodeStore.settings.iCloudSyncEnabled)
         Button("立即备份到 iCloud", systemImage: "icloud.and.arrow.up") {
           perform { try nodeStore.uploadConfigurationToCloud() }
@@ -47,12 +51,14 @@ struct BackupView: View {
         Button("从 iCloud 恢复", systemImage: "icloud.and.arrow.down") {
           confirmsCloudRestore = true
         }
+      } header: {
+        Text("iCloud")
       } footer: {
         Text("使用当前 Apple ID 的私有键值存储；超过容量时请改用文件备份。冲突时以手动恢复或最后上传的版本为准。")
       }
 
       if let message {
-        Section { Text(message).foregroundStyle(message.hasPrefix("失败") ? .red : .secondary) }
+        Section { Text(message).foregroundStyle(message.hasPrefix("失败") ? Color.red : Color.secondary) }
       }
     }
     .navigationTitle("备份与同步")

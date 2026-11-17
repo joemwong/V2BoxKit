@@ -115,14 +115,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     let ipv4 = NEIPv4Settings(addresses: ["172.19.0.2"], subnetMasks: ["255.255.255.0"])
     ipv4.includedRoutes = [.default()]
     if routing.mode == .rule, routing.bypassPrivateNetworks {
-      ipv4.excludedRoutes = Self.privateIPv4Routes
+      ipv4.excludedRoutes = Self.privateIPv4Routes()
     }
     settings.ipv4Settings = ipv4
 
     let ipv6 = NEIPv6Settings(addresses: ["fd00:19::2"], networkPrefixLengths: [64])
     ipv6.includedRoutes = [.default()]
     if routing.mode == .rule, routing.bypassPrivateNetworks {
-      ipv6.excludedRoutes = Self.privateIPv6Routes
+      ipv6.excludedRoutes = Self.privateIPv6Routes()
     }
     settings.ipv6Settings = ipv6
 
@@ -173,18 +173,22 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     return nil
   }
 
-  private static let privateIPv4Routes = [
-    NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
-    NEIPv4Route(destinationAddress: "100.64.0.0", subnetMask: "255.192.0.0"),
-    NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
-    NEIPv4Route(destinationAddress: "169.254.0.0", subnetMask: "255.255.0.0"),
-    NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
-    NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),
-  ]
+  private static func privateIPv4Routes() -> [NEIPv4Route] {
+    [
+      NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
+      NEIPv4Route(destinationAddress: "100.64.0.0", subnetMask: "255.192.0.0"),
+      NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
+      NEIPv4Route(destinationAddress: "169.254.0.0", subnetMask: "255.255.0.0"),
+      NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
+      NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),
+    ]
+  }
 
-  private static let privateIPv6Routes = [
-    NEIPv6Route(destinationAddress: "::1", networkPrefixLength: 128),
-    NEIPv6Route(destinationAddress: "fc00::", networkPrefixLength: 7),
-    NEIPv6Route(destinationAddress: "fe80::", networkPrefixLength: 10),
-  ]
+  private static func privateIPv6Routes() -> [NEIPv6Route] {
+    [
+      NEIPv6Route(destinationAddress: "::1", networkPrefixLength: 128),
+      NEIPv6Route(destinationAddress: "fc00::", networkPrefixLength: 7),
+      NEIPv6Route(destinationAddress: "fe80::", networkPrefixLength: 10),
+    ]
+  }
 }
