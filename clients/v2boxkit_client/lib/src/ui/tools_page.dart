@@ -52,12 +52,13 @@ class _ToolsPageState extends State<ToolsPage> {
         _ToolCard(
           icon: Icons.speed,
           title: '批量测速',
-          description: '连接前逐个启动短生命周期 Xray 实例并测试真实代理链路。',
+          description: '连接前并行启动短生命周期 Xray 实例（最多 4 个）并测试真实代理链路。',
           children: [
             FilledButton.tonalIcon(
               onPressed:
                   widget.controller.nodes.isEmpty ||
-                      widget.controller.isConnected
+                      widget.controller.isConnected ||
+                      widget.controller.measuringAll
                   ? null
                   : widget.controller.measureAllLatencies,
               icon: const Icon(Icons.play_arrow),

@@ -112,7 +112,7 @@ final class NodeStore: ObservableObject {
     refreshInterval: SubscriptionRefreshInterval
   ) async throws {
     guard subscriptions.allSatisfy({ $0.url != url }) else {
-      throw SubscriptionService.SubscriptionError.invalidResponse
+      throw SubscriptionService.SubscriptionError.duplicate
     }
 
     var subscription = ProxySubscription(name: name, url: url, refreshInterval: refreshInterval)
@@ -142,10 +142,11 @@ final class NodeStore: ObservableObject {
 
     do {
       let result = try await subscriptionService.fetch(subscription: current)
-      if let newNodes = result.nodes {
-        replaceNodes(for: current, with: newNodes)
-      }
+      // The subscription may have been renamed or deleted while the request was in flight.
       guard let latestIndex = subscriptions.firstIndex(where: { $0.id == id }) else { return false }
+      if let newNodes = result.nodes {
+        replaceNodes(for: subscriptions[latestIndex], with: newNodes)
+      }
       subscriptions[latestIndex].lastUpdatedAt = Date()
       subscriptions[latestIndex].lastError = nil
       subscriptions[latestIndex].etag = result.etag
@@ -204,11 +205,15 @@ final class NodeStore: ObservableObject {
   }
 
   func measureLatency(for node: ProxyNode) async {
+    await measureLatency(for: node, port: nil, persist: true)
+  }
+
+  private func measureLatency(for node: ProxyNode, port: Int?, persist: Bool) async {
     guard !pingingNodeIDs.contains(node.id) else { return }
     pingingNodeIDs.insert(node.id)
     defer { pingingNodeIDs.remove(node.id) }
-    let latency = await latencyService.measure(node: node)
-    updateNode(node.id) {
+    let latency = await latencyService.measure(node: node, port: port)
+    updateNode(node.id, persist: persist) {
       $0.latencyMilliseconds = latency
       $0.latencyMeasuredAt = Date()
     }
@@ -216,10 +221,27 @@ final class NodeStore: ObservableObject {
 
   func measureAllLatencies(selectFastest: Bool? = nil) async {
     let snapshot = visibleNodes(searchText: "")
-    for node in snapshot {
-      guard !Task.isCancelled else { break }
-      await measureLatency(for: node)
+    // Each probe can block for the full timeout; a small worker pool keeps "test all" at
+    // roughly N/4 × timeout instead of N × timeout.
+    let maxConcurrent = 4
+    // Distinct ports reserved up front; per-probe allocation could collide.
+    let ports = await latencyService.freePorts(count: snapshot.count)
+    let jobs = snapshot.enumerated().map { index, node in
+      (node, ports.indices.contains(index) ? ports[index] : nil)
     }
+    await withTaskGroup(of: Void.self) { group in
+      var iterator = jobs.makeIterator()
+      for _ in 0..<maxConcurrent {
+        guard let (node, port) = iterator.next() else { break }
+        group.addTask { await self.measureLatency(for: node, port: port, persist: false) }
+      }
+      while await group.next() != nil {
+        guard !Task.isCancelled, let (node, port) = iterator.next() else { continue }
+        group.addTask { await self.measureLatency(for: node, port: port, persist: false) }
+      }
+    }
+    // One write (and one iCloud upload) for the whole batch.
+    persistNodes()
     let shouldSelect = selectFastest ?? settings.autoSelectFastest
     if shouldSelect {
       selectedNodeID =
@@ -231,6 +253,10 @@ final class NodeStore: ObservableObject {
   }
 
   func reloadFromDisk() {
+    // Assigning loaded values fires the didSet persisters; without this every foreground
+    // re-wrote all keys and scheduled an iCloud upload even when nothing changed.
+    isRestoringArchive = true
+    defer { isRestoringArchive = false }
     if let data = defaults.data(forKey: AppConstants.nodesStorageKey),
       let storedNodes = try? decoder.decode([ProxyNode].self, from: data)
     {
@@ -338,10 +364,12 @@ final class NodeStore: ObservableObject {
     persistNodes()
   }
 
-  private func updateNode(_ id: UUID, mutation: (inout ProxyNode) -> Void) {
+  private func updateNode(
+    _ id: UUID, persist: Bool = true, mutation: (inout ProxyNode) -> Void
+  ) {
     guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
     mutation(&nodes[index])
-    persistNodes()
+    if persist { persistNodes() }
   }
 
   private func repairSelection(removedIDs: [UUID], preferred: UUID? = nil) {

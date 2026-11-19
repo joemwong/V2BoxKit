@@ -138,10 +138,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       dns = encrypted
     case .dot:
       let encrypted = NEDNSOverTLSSettings(servers: routing.dns.systemServers)
-      encrypted.serverName =
-        routing.dns.normalizedServers[0]
-        .replacingOccurrences(of: "tls://", with: "")
-        .components(separatedBy: ":").first
+      // Splitting on ":" truncated IPv6 servers ("2606:4700::1111" -> "2606").
+      encrypted.serverName = routing.dns.primaryServerHost
       dns = encrypted
     }
     dns.matchDomains = [""]

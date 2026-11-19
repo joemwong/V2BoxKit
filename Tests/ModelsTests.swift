@@ -63,4 +63,18 @@ final class ModelsTests: XCTestCase {
     XCTAssertFalse(routing.localSharing.isEnabled)
     XCTAssertTrue(routing.localSharing.isValid)
   }
+
+  func testDNSServerOrderIsPreservedAndHostParsed() {
+    var dns = DNSConfiguration(mode: .dot, servers: ["9.9.9.9", "1.1.1.1", "9.9.9.9"])
+    XCTAssertEqual(dns.normalizedServers, ["9.9.9.9", "1.1.1.1"])
+    XCTAssertEqual(dns.primaryServerHost, "9.9.9.9")
+
+    dns.servers = ["2606:4700:4700::1111"]
+    XCTAssertEqual(dns.primaryServerHost, "2606:4700:4700::1111")
+    dns.servers = ["tls://dns.google:853"]
+    XCTAssertEqual(dns.primaryServerHost, "dns.google")
+
+    let udp = DNSConfiguration(mode: .udp, servers: ["https://dns.google/dns-query"])
+    XCTAssertEqual(udp.systemServers, ["1.1.1.1"])
+  }
 }

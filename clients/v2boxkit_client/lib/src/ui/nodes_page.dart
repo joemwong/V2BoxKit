@@ -160,7 +160,10 @@ class _Header extends StatelessWidget {
           label: const Text('导入链接'),
         ),
         OutlinedButton.icon(
-          onPressed: controller.nodes.isEmpty || controller.isConnected
+          onPressed:
+              controller.nodes.isEmpty ||
+                  controller.isConnected ||
+                  controller.measuringAll
               ? null
               : () => controller.measureAllLatencies(),
           icon: const Icon(Icons.speed),

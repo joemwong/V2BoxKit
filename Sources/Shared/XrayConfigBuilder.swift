@@ -29,12 +29,15 @@ enum XrayConfigBuilder {
       throw BuilderError.missingOutbound
     }
 
-    outbounds[0]["tag"] = "proxy"
+    // Drop managed tags before naming the node outbound; tagging first would
+    // rename a generated "direct" outbound to "proxy" instead of removing it.
     let managedTags = Set(["direct", "block"])
     outbounds.removeAll { outbound in
       guard let tag = outbound["tag"] as? String else { return false }
       return managedTags.contains(tag)
     }
+    guard !outbounds.isEmpty else { throw BuilderError.missingOutbound }
+    outbounds[0]["tag"] = "proxy"
     outbounds.append(["tag": "direct", "protocol": "freedom"])
     outbounds.append(["tag": "block", "protocol": "blackhole"])
 
@@ -88,6 +91,13 @@ enum XrayConfigBuilder {
       "xray.tun.fd": String(tunnelFileDescriptor)
     ]
     configuration["log"] = ["loglevel": "warning"]
+    // Without a dns block, IPIfNonMatch resolved every unmatched domain with the
+    // extension's system resolver: plain-text queries straight to the ISP.
+    // These servers are dispatched through routing, i.e. via the proxy.
+    configuration["dns"] = [
+      "servers": routing.dns.xrayCoreServers,
+      "queryStrategy": "UseIP",
+    ]
     configuration["routing"] = [
       "domainStrategy": "IPIfNonMatch",
       "rules": routingRules(for: routing),

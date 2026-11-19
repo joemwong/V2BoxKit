@@ -60,7 +60,12 @@ class _AppShellState extends State<AppShell> {
         final page = switch (selectedIndex) {
           0 => NodesPage(controller: widget.controller),
           1 => SubscriptionsPage(controller: widget.controller),
-          2 => RoutingPage(controller: widget.controller),
+          2 => RoutingPage(
+            // New state whenever routing is replaced (save or backup restore),
+            // so the page never writes a stale draft over restored settings.
+            key: ObjectKey(widget.controller.routing),
+            controller: widget.controller,
+          ),
           _ => ToolsPage(controller: widget.controller),
         };
         return LayoutBuilder(

@@ -21,12 +21,63 @@ class XrayConfigBuilder {
     'ff00::/8',
   ];
 
+  /// Minimal config for libXray `ping`: the node outbound behind a loopback
+  /// SOCKS inbound. Must not contain the tun inbound (that would open a second
+  /// tun / Wintun adapter and rewrite system routes) or routing rules (which
+  /// could send the probe through `direct` instead of the node).
+  Map<String, Object?> buildLatencyProbe(Map<String, Object?> base, int port) {
+    final configuration = (jsonDecode(jsonEncode(base)) as Map)
+        .cast<String, Object?>();
+    final outbounds = _cleanOutbounds(configuration);
+    outbounds.first['tag'] = 'proxy';
+    return <String, Object?>{
+      'log': <String, Object?>{'loglevel': 'warning'},
+      'outbounds': [outbounds.first],
+      'inbounds': [
+        <String, Object?>{
+          'tag': 'latency-in',
+          'listen': '127.0.0.1',
+          'port': port,
+          'protocol': 'socks',
+          'settings': <String, Object?>{'udp': false},
+        },
+      ],
+    };
+  }
+
   Map<String, Object?> build(
     Map<String, Object?> base,
     RoutingSettings settings,
   ) {
     final configuration = (jsonDecode(jsonEncode(base)) as Map)
         .cast<String, Object?>();
+    final outbounds = _cleanOutbounds(configuration);
+
+    outbounds.first['tag'] = 'proxy';
+    outbounds.addAll([
+      <String, Object?>{'tag': 'direct', 'protocol': 'freedom'},
+      <String, Object?>{'tag': 'block', 'protocol': 'blackhole'},
+    ]);
+
+    configuration
+      ..['log'] = <String, Object?>{'loglevel': 'warning'}
+      ..['outbounds'] = outbounds
+      ..['inbounds'] = _inbounds(settings)
+      ..['dns'] = <String, Object?>{
+        'servers': [settings.dnsServer],
+        'queryStrategy': 'UseIP',
+      }
+      ..['routing'] = <String, Object?>{
+        'domainStrategy': 'IPIfNonMatch',
+        'rules': _routingRules(settings),
+      };
+
+    return configuration;
+  }
+
+  List<Map<String, Object?>> _cleanOutbounds(
+    Map<String, Object?> configuration,
+  ) {
     final rawOutbounds = configuration['outbounds'];
     if (rawOutbounds is! List || rawOutbounds.isEmpty) {
       throw const FormatException('节点没有生成可用的 Xray 出站配置');
@@ -57,27 +108,21 @@ class XrayConfigBuilder {
         }
       }
     }
+    return outbounds;
+  }
 
-    outbounds.first['tag'] = 'proxy';
-    outbounds.addAll([
-      <String, Object?>{'tag': 'direct', 'protocol': 'freedom'},
-      <String, Object?>{'tag': 'block', 'protocol': 'blackhole'},
-    ]);
-
-    configuration
-      ..['log'] = <String, Object?>{'loglevel': 'warning'}
-      ..['outbounds'] = outbounds
-      ..['inbounds'] = _inbounds(settings)
-      ..['dns'] = <String, Object?>{
-        'servers': [settings.dnsServer],
-        'queryStrategy': 'UseIP',
-      }
-      ..['routing'] = <String, Object?>{
-        'domainStrategy': 'IPIfNonMatch',
-        'rules': _routingRules(settings),
-      };
-
-    return configuration;
+  /// Lowercases plain domains but keeps `regexp:` patterns verbatim, since
+  /// case matters there (`\D` vs `\d`). Known Xray prefixes are preserved.
+  static String _domainMatcher(String raw) {
+    final value = raw.trim();
+    final prefix = RegExp(
+      r'^(domain|full|regexp|keyword|geosite):',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (prefix == null) return 'domain:${value.toLowerCase()}';
+    final kind = prefix.group(1)!.toLowerCase();
+    final body = value.substring(prefix.end);
+    return kind == 'regexp' ? 'regexp:$body' : '$kind:${body.toLowerCase()}';
   }
 
   List<Map<String, Object?>> _inbounds(RoutingSettings settings) {
@@ -165,13 +210,8 @@ class XrayConfigBuilder {
           });
         }
         final domains = settings.directDomains
-            .map((domain) => domain.trim().toLowerCase())
-            .where((domain) => domain.isNotEmpty)
-            .map(
-              (domain) => domain.startsWith(RegExp(r'(domain|full|regexp):'))
-                  ? domain
-                  : 'domain:$domain',
-            )
+            .where((domain) => domain.trim().isNotEmpty)
+            .map(_domainMatcher)
             .toList();
         if (domains.isNotEmpty) {
           rules.add({
@@ -197,12 +237,7 @@ class XrayConfigBuilder {
     };
     switch (rule.kind) {
       case RoutingRuleKind.domain:
-        result['domain'] = rule.normalizedValues.map((value) {
-          final normalized = value.toLowerCase();
-          return normalized.startsWith(RegExp(r'(domain|full|regexp):'))
-              ? normalized
-              : 'domain:$normalized';
-        }).toList();
+        result['domain'] = rule.normalizedValues.map(_domainMatcher).toList();
       case RoutingRuleKind.ip:
         result['ip'] = rule.normalizedValues;
     }

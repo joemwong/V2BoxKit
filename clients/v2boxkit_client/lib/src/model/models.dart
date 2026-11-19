@@ -460,30 +460,42 @@ class AppSnapshot {
     }
     return AppSnapshot(
       formatVersion: version,
-      nodes:
-          (json['nodes'] as List?)
-              ?.map(
-                (node) =>
-                    ProxyNode.fromJson((node as Map).cast<String, Object?>()),
-              )
-              .toList() ??
-          const [],
-      subscriptions:
-          (json['subscriptions'] as List?)
-              ?.map(
-                (subscription) => ProxySubscription.fromJson(
-                  (subscription as Map).cast<String, Object?>(),
-                ),
-              )
-              .toList() ??
-          const [],
-      routing: json['routing'] == null
-          ? const RoutingSettings()
-          : RoutingSettings.fromJson(
-              (json['routing'] as Map).cast<String, Object?>(),
-            ),
+      // Per-record parsing: one unreadable node (e.g. an unknown protocol
+      // after a downgrade) used to discard the whole snapshot.
+      nodes: _parseEach(json['nodes'], ProxyNode.fromJson),
+      subscriptions: _parseEach(
+        json['subscriptions'],
+        ProxySubscription.fromJson,
+      ),
+      routing: _parseRouting(json['routing']),
       selectedNodeId: json['selectedNodeId'] as String?,
     );
+  }
+}
+
+List<T> _parseEach<T>(
+  Object? value,
+  T Function(Map<String, Object?>) parse,
+) {
+  if (value is! List) return const [];
+  final result = <T>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    try {
+      result.add(parse(item.cast<String, Object?>()));
+    } catch (_) {
+      // Skip the bad record, keep the rest.
+    }
+  }
+  return result;
+}
+
+RoutingSettings _parseRouting(Object? value) {
+  if (value is! Map) return const RoutingSettings();
+  try {
+    return RoutingSettings.fromJson(value.cast<String, Object?>());
+  } catch (_) {
+    return const RoutingSettings();
   }
 }
 
