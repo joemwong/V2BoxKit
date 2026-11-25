@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import java.net.InetAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import libXray.DialerController
 import libXray.LibXray
 import org.json.JSONObject
@@ -20,7 +21,8 @@ class XrayVpnService :
     VpnService(),
     DialerController {
     private val executor = Executors.newSingleThreadExecutor()
-    private var tunFileDescriptor = -1
+    // Only touched on [executor]; volatile for the final read in onDestroy.
+    @Volatile private var tunFileDescriptor = -1
 
     override fun onCreate() {
         super.onCreate()
@@ -33,7 +35,7 @@ class XrayVpnService :
         startId: Int,
     ): Int {
         when (intent?.action) {
-            ACTION_STOP -> executor.execute { stopRuntime(stopService = true) }
+            ACTION_STOP -> executor.execute { stopRuntime(stopService = true, startId = startId) }
             ACTION_START -> {
                 startForeground(NOTIFICATION_ID, buildNotification("连接中"))
                 val config = intent.getStringExtra(EXTRA_CONFIG)
@@ -108,6 +110,7 @@ class XrayVpnService :
     private fun stopRuntime(
         stopService: Boolean,
         emitEvent: Boolean = true,
+        startId: Int? = null,
     ) {
         if (emitEvent) TunnelEventBus.emit("disconnecting")
         try {
@@ -135,6 +138,10 @@ class XrayVpnService :
         }
         if (emitEvent) TunnelEventBus.emit("disconnected")
         if (stopService) {
+            // With a start id, only stop if no newer command (e.g. a reconnect
+            // right after disconnect) arrived; plain stopSelf() would destroy
+            // the service and silently tear down the new tunnel.
+            if (startId != null && !stopSelfResult(startId)) return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
             } else {
@@ -153,8 +160,20 @@ class XrayVpnService :
     }
 
     override fun onDestroy() {
-        stopRuntime(stopService = false, emitEvent = false)
+        // Run teardown on the same executor as start so it can't interleave with
+        // a startRuntime in progress (double close / leaked TUN fd), and keep the
+        // blocking JNI calls off the main thread.
+        try {
+            executor.execute { stopRuntime(stopService = false, emitEvent = false) }
+        } catch (_: Throwable) {
+            // Executor already shut down.
+        }
         executor.shutdown()
+        try {
+            executor.awaitTermination(3, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
         super.onDestroy()
     }
 

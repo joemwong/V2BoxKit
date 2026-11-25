@@ -67,7 +67,7 @@ class _RoutingPageState extends State<RoutingPage> {
                     ButtonSegment(value: mode, label: Text(mode.label)),
                 ],
                 selected: {draft.mode},
-                onSelectionChanged: widget.controller.isConnected
+                onSelectionChanged: widget.controller.isTransitioning
                     ? null
                     : (selection) {
                         setState(() {
@@ -81,7 +81,7 @@ class _RoutingPageState extends State<RoutingPage> {
                 value: draft.bypassPrivateNetworks,
                 title: const Text('私有网络直连'),
                 subtitle: const Text('绕过局域网、回环、链路本地和 CGNAT 地址'),
-                onChanged: widget.controller.isConnected
+                onChanged: widget.controller.isTransitioning
                     ? null
                     : (value) {
                         setState(() {
@@ -94,7 +94,7 @@ class _RoutingPageState extends State<RoutingPage> {
                 controller: directDomains,
                 minLines: 3,
                 maxLines: 7,
-                enabled: !widget.controller.isConnected,
+                enabled: !widget.controller.isTransitioning,
                 decoration: const InputDecoration(
                   labelText: '直连域名（每行一个）',
                   hintText: 'example.com\nfull:api.example.com',
@@ -107,7 +107,7 @@ class _RoutingPageState extends State<RoutingPage> {
         _Section(
           title: '自定义规则',
           trailing: TextButton.icon(
-            onPressed: widget.controller.isConnected ? null : _addRule,
+            onPressed: widget.controller.isTransitioning ? null : _addRule,
             icon: const Icon(Icons.add),
             label: const Text('添加'),
           ),
@@ -123,7 +123,7 @@ class _RoutingPageState extends State<RoutingPage> {
                         contentPadding: EdgeInsets.zero,
                         leading: Switch(
                           value: rule.isEnabled,
-                          onChanged: widget.controller.isConnected
+                          onChanged: widget.controller.isTransitioning
                               ? null
                               : (value) => _replaceRule(
                                   rule.copyWith(isEnabled: value),
@@ -135,7 +135,7 @@ class _RoutingPageState extends State<RoutingPage> {
                           '${rule.normalizedValues.length} 项',
                         ),
                         trailing: IconButton(
-                          onPressed: widget.controller.isConnected
+                          onPressed: widget.controller.isTransitioning
                               ? null
                               : () => _removeRule(rule.id),
                           icon: const Icon(Icons.delete_outline),
@@ -155,7 +155,7 @@ class _RoutingPageState extends State<RoutingPage> {
                 width: 420,
                 child: TextField(
                   controller: dns,
-                  enabled: !widget.controller.isConnected,
+                  enabled: !widget.controller.isTransitioning,
                   decoration: const InputDecoration(
                     labelText: 'DNS 服务器',
                     hintText: '1.1.1.1 或 https://dns.example/dns-query',
@@ -172,7 +172,7 @@ class _RoutingPageState extends State<RoutingPage> {
                     DropdownMenuItem(value: 1400, child: Text('1400')),
                     DropdownMenuItem(value: 1500, child: Text('1500')),
                   ],
-                  onChanged: widget.controller.isConnected
+                  onChanged: widget.controller.isTransitioning
                       ? null
                       : (value) {
                           if (value != null) {
@@ -194,7 +194,7 @@ class _RoutingPageState extends State<RoutingPage> {
                 value: draft.localSharing.isEnabled,
                 title: const Text('启用 SOCKS5 与 HTTP 入站'),
                 subtitle: const Text('监听 0.0.0.0 时仅应在可信网络使用，并必须设置认证'),
-                onChanged: widget.controller.isConnected
+                onChanged: widget.controller.isTransitioning
                     ? null
                     : (value) {
                         setState(() {
@@ -260,7 +260,7 @@ class _RoutingPageState extends State<RoutingPage> {
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
-            onPressed: widget.controller.isConnected ? null : _save,
+            onPressed: widget.controller.isTransitioning ? null : _save,
             icon: const Icon(Icons.save_outlined),
             label: const Text('保存设置'),
           ),

@@ -13,12 +13,14 @@ struct SubscriptionService {
     case invalidURL
     case invalidResponse
     case unsupportedEncoding
+    case duplicate
 
     var errorDescription: String? {
       switch self {
       case .invalidURL: "订阅地址必须是 HTTPS URL"
       case .invalidResponse: "订阅服务器返回失败"
       case .unsupportedEncoding: "订阅内容不是 UTF-8 文本"
+      case .duplicate: "该订阅地址已存在"
       }
     }
   }

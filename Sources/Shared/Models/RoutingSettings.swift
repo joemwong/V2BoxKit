@@ -38,11 +38,30 @@ struct DNSConfiguration: Codable, Equatable, Sendable {
   var fallbackServer = "1.1.1.1"
 
   var normalizedServers: [String] {
+    // Order is the user's priority: the first entry becomes the DoH/DoT endpoint.
+    var seen = Set<String>()
     let values =
       servers
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
-    return values.isEmpty ? ["1.1.1.1"] : Array(Set(values)).sorted()
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+    return values.isEmpty ? ["1.1.1.1"] : values
+  }
+
+  /// Host of the primary server without scheme, port, path or IPv6 brackets.
+  var primaryServerHost: String {
+    let value = normalizedServers[0]
+    let candidate: String
+    if value.contains("://") {
+      candidate = value
+    } else if value.filter({ $0 == ":" }).count > 1, !value.hasPrefix("[") {
+      candidate = "dns://[\(value)]"  // Bare IPv6 literal.
+    } else {
+      candidate = "dns://\(value)"
+    }
+    if let host = URLComponents(string: candidate)?.host, !host.isEmpty {
+      return host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+    }
+    return value
   }
 
   var xrayServers: [String] {
@@ -58,13 +77,34 @@ struct DNSConfiguration: Codable, Equatable, Sendable {
     }
   }
 
+  /// Servers for Xray's internal resolver. Xray-core has no DoT client, so DoT
+  /// entries use DNS over TCP; the query still travels inside the proxy.
+  var xrayCoreServers: [String] {
+    switch mode {
+    case .udp, .doh:
+      return xrayServers
+    case .dot:
+      return normalizedServers.map { server in
+        let host = DNSConfiguration(mode: .dot, servers: [server]).primaryServerHost
+        return host.contains(":") ? "tcp://[\(host)]:53" : "tcp://\(host):53"
+      }
+    }
+  }
+
   var systemServers: [String] {
     switch mode {
     case .udp:
-      return normalizedServers.filter { !$0.contains("://") }
+      // An empty server list makes NEDNSSettings invalid and the tunnel fails to start.
+      let plain = normalizedServers.filter { !$0.contains("://") }
+      return plain.isEmpty ? [normalizedFallbackServer] : plain
     case .doh, .dot:
-      return [fallbackServer]
+      return [normalizedFallbackServer]
     }
+  }
+
+  private var normalizedFallbackServer: String {
+    let value = fallbackServer.trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? "1.1.1.1" : value
   }
 }
 

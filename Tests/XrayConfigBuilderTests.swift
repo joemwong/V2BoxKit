@@ -112,4 +112,24 @@ final class XrayConfigBuilderTests: XCTestCase {
     let accounts = try XCTUnwrap(settings["accounts"] as? [[String: String]])
     XCTAssertEqual(accounts.first?["user"], "alice")
   }
+
+  func testDNSBlockAndManagedTagsRemovedBeforeTagging() throws {
+    let base: [String: Any] = [
+      "outbounds": [["tag": "direct", "protocol": "freedom"], ["protocol": "vless"]]
+    ]
+    var routing = RoutingSettings()
+    routing.dns = DNSConfiguration(mode: .dot, servers: ["dns.google", "2606:4700:4700::1111"])
+    let json = try XrayConfigBuilder.build(
+      baseConfiguration: base, tunnelFileDescriptor: 3, routing: routing)
+    let object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+
+    let outbounds = try XCTUnwrap(object["outbounds"] as? [[String: Any]])
+    XCTAssertEqual(outbounds.map { $0["tag"] as? String }, ["proxy", "direct", "block"])
+    XCTAssertEqual(outbounds[0]["protocol"] as? String, "vless")
+
+    let dns = try XCTUnwrap(object["dns"] as? [String: Any])
+    XCTAssertEqual(
+      dns["servers"] as? [String], ["tcp://dns.google:53", "tcp://[2606:4700:4700::1111]:53"])
+  }
 }

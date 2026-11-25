@@ -7,6 +7,17 @@ struct NodeDetailView: View {
   let node: ProxyNode
   @State private var errorMessage: String?
 
+  /// Connected, but to a different node than the one shown.
+  private var canSwitch: Bool {
+    tunnelManager.isConnected && tunnelManager.activeNodeID != nil
+      && tunnelManager.activeNodeID != node.id
+  }
+
+  private var buttonTitle: String {
+    if canSwitch { return "切换到此节点" }
+    return tunnelManager.isConnected ? "断开连接" : "连接"
+  }
+
   var body: some View {
     ScrollView {
       VStack(spacing: 28) {
@@ -47,20 +58,32 @@ struct NodeDetailView: View {
     Button {
       Task {
         do {
-          try await tunnelManager.toggle(
-            node: node,
-            routing: nodeStore.routing,
-            onDemand: nodeStore.settings.onDemand
-          )
+          if canSwitch {
+            try await tunnelManager.reconnect(
+              node: node,
+              routing: nodeStore.routing,
+              onDemand: nodeStore.settings.onDemand
+            )
+          } else {
+            try await tunnelManager.toggle(
+              node: node,
+              routing: nodeStore.routing,
+              onDemand: nodeStore.settings.onDemand
+            )
+          }
         } catch {
           errorMessage = error.localizedDescription
         }
       }
     } label: {
       VStack(spacing: 10) {
-        Image(systemName: tunnelManager.isConnected ? "power.circle.fill" : "power.circle")
+        Image(
+          systemName: canSwitch
+            ? "arrow.triangle.2.circlepath.circle"
+            : (tunnelManager.isConnected ? "power.circle.fill" : "power.circle")
+        )
           .font(.system(size: 86, weight: .light))
-        Text(tunnelManager.isConnected ? "断开连接" : "连接")
+        Text(buttonTitle)
           .font(.headline)
         Text(tunnelManager.statusText)
           .font(.caption)
@@ -68,12 +91,13 @@ struct NodeDetailView: View {
       }
       .frame(width: 220, height: 220)
       .background(
-        tunnelManager.isConnected ? Color.green.opacity(0.16) : Color.blue.opacity(0.12),
+        tunnelManager.isConnected && !canSwitch
+          ? Color.green.opacity(0.16) : Color.blue.opacity(0.12),
         in: Circle()
       )
     }
     .buttonStyle(.plain)
     .disabled(tunnelManager.isWorking)
-    .accessibilityLabel(tunnelManager.isConnected ? "断开 VPN" : "连接 VPN")
+    .accessibilityLabel(canSwitch ? "切换 VPN 节点" : (tunnelManager.isConnected ? "断开 VPN" : "连接 VPN"))
   }
 }

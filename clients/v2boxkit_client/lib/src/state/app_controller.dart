@@ -45,7 +45,11 @@ class AppController extends ChangeNotifier {
   TunnelStatus _tunnelStatus = TunnelStatus.disconnected;
   String? _lastMessage;
   final Set<String> _measuringNodeIds = {};
-  bool _busy = false;
+  // A counter, not a bool: concurrent refreshes (auto + manual) used to clear
+  // the busy flag as soon as the first one finished.
+  int _busyCount = 0;
+  bool _measuringAll = false;
+  Timer? _disconnectFallback;
 
   List<ProxyNode> get nodes => List.unmodifiable(_nodes);
   List<ProxySubscription> get subscriptions =>
@@ -55,7 +59,11 @@ class AppController extends ChangeNotifier {
   TunnelStatus get tunnelStatus => _tunnelStatus;
   String? get lastMessage => _lastMessage;
   Set<String> get measuringNodeIds => Set.unmodifiable(_measuringNodeIds);
-  bool get busy => _busy;
+  bool get busy => _busyCount > 0;
+  bool get measuringAll => _measuringAll;
+  bool get isTransitioning =>
+      _tunnelStatus == TunnelStatus.connecting ||
+      _tunnelStatus == TunnelStatus.disconnecting;
   bool get isConnected =>
       _tunnelStatus == TunnelStatus.connected ||
       _tunnelStatus == TunnelStatus.connecting;
@@ -127,12 +135,17 @@ class AppController extends ChangeNotifier {
 
   Future<void> selectNode(String id) async {
     if (!_nodes.any((node) => node.id == id)) return;
-    if (isConnected && id != _selectedNodeId) {
-      throw StateError('请先断开连接再切换节点');
+    if (id == _selectedNodeId) return;
+    final wasConnected = _tunnelStatus == TunnelStatus.connected;
+    if (_tunnelStatus == TunnelStatus.connecting ||
+        _tunnelStatus == TunnelStatus.disconnecting) {
+      throw StateError('正在切换连接状态，请稍候');
     }
     _selectedNodeId = id;
     await _persist();
     notifyListeners();
+    // Switch nodes in place instead of forcing disconnect → select → connect.
+    if (wasConnected) await _restartTunnel();
   }
 
   void toggleFavorite(String id) {
@@ -199,6 +212,9 @@ class AppController extends ChangeNotifier {
     _setBusy(true);
     try {
       final response = await _subscriptionService.fetch(current);
+      // The subscription may have been removed while the request was in
+      // flight; re-adding its nodes would leave undeletable orphans.
+      if (!_subscriptions.any((subscription) => subscription.id == id)) return;
       final now = DateTime.now();
       if (response.notModified) {
         _replaceSubscription(
@@ -290,7 +306,29 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> connect() async {
+  Future<void> connect() => _startTunnel(requestPermission: true);
+
+  /// Applies a new node or new routing settings to a running tunnel.
+  Future<void> _restartTunnel() async {
+    if (Platform.isWindows) {
+      // libXray refuses to run a second instance; stop the old one first.
+      try {
+        await _bridge.stop();
+      } catch (error) {
+        // Without this the status stayed `disconnecting` forever and locked
+        // the connect button and routing page.
+        _tunnelStatus = TunnelStatus.error;
+        _lastMessage = error.toString();
+        notifyListeners();
+        rethrow;
+      }
+    }
+    // On Android the VPN service tears down the old runtime itself before
+    // re-establishing, so the system VPN key icon never drops.
+    await _startTunnel(requestPermission: false);
+  }
+
+  Future<void> _startTunnel({required bool requestPermission}) async {
     final node = selectedNode;
     if (node == null) throw StateError('请先选择一个节点');
     if (!_routing.localSharing.isValid) {
@@ -301,7 +339,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (!await _bridge.requestPermission()) {
+      if (requestPermission && !await _bridge.requestPermission()) {
         throw StateError('用户未授予 VPN 权限');
       }
       final converted = await _bridge.invoke('convertShareLinksToXrayJson', {
@@ -335,8 +373,22 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       await _bridge.stop();
-      _tunnelStatus = TunnelStatus.disconnected;
-      _lastMessage = '连接已断开';
+      if (Platform.isAndroid) {
+        // stop() only sends the intent; the service reports `disconnected`
+        // once teardown finishes. Showing it earlier let users reconnect into
+        // a half-stopped service. Fall back in case the event is lost.
+        _disconnectFallback?.cancel();
+        _disconnectFallback = Timer(const Duration(seconds: 6), () {
+          if (_tunnelStatus == TunnelStatus.disconnecting) {
+            _tunnelStatus = TunnelStatus.disconnected;
+            _lastMessage = '连接已断开';
+            notifyListeners();
+          }
+        });
+      } else {
+        _tunnelStatus = TunnelStatus.disconnected;
+        _lastMessage = '连接已断开';
+      }
     } catch (error) {
       _tunnelStatus = TunnelStatus.error;
       _lastMessage = error.toString();
@@ -346,7 +398,11 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> measureLatency(String id) async {
+  Future<void> measureLatency(
+    String id, {
+    bool persist = true,
+    int? port,
+  }) async {
     if (isConnected) {
       throw StateError('连接期间不能启动独立测速实例');
     }
@@ -363,7 +419,11 @@ class AppController extends ChangeNotifier {
       });
       converted.requireSuccess();
       final base = (converted.data! as Map).cast<String, Object?>();
-      final configuration = _configBuilder.build(base, _routing);
+      final probePort = port ?? (await _freePorts(1)).first;
+      // Probe-only config: the full tunnel config would start a second tun
+      // (on Windows: a Wintun adapter that rewrites routes) and could route
+      // the probe through `direct` instead of the node.
+      final configuration = _configBuilder.buildLatencyProbe(base, probePort);
       final directory = await getTemporaryDirectory();
       temporaryFile = File(
         '${directory.path}/v2boxkit-ping-${_uuid.v4()}.json',
@@ -372,7 +432,8 @@ class AppController extends ChangeNotifier {
       final response = await _bridge.invoke('ping', {
         'configPath': temporaryFile.path,
         'timeout': 5,
-        'url': 'https://cp.cloudflare.com/',
+        'url': 'https://cp.cloudflare.com/generate_204',
+        'proxy': 'socks5://127.0.0.1:$probePort',
       });
       response.requireSuccess();
       if (response.data is Map) {
@@ -393,24 +454,68 @@ class AppController extends ChangeNotifier {
         );
       }
       _measuringNodeIds.remove(id);
-      await _persist();
+      if (persist) await _persist();
       notifyListeners();
     }
   }
 
   Future<void> measureAllLatencies() async {
-    for (final node in List.of(_nodes)) {
-      await measureLatency(node.id);
+    if (_measuringAll) return;
+    _measuringAll = true;
+    notifyListeners();
+    final queue = List.of(_nodes.map((node) => node.id));
+    // Reserve distinct ports up front: parallel probes asking one at a time
+    // could be handed the same port, and one of them would fail.
+    var ports = <int>[];
+    try {
+      ports = await _freePorts(queue.length);
+    } catch (_) {
+      // Fall back to per-probe allocation.
+    }
+    final portById = <String, int>{
+      for (var i = 0; i < queue.length && i < ports.length; i++)
+        queue[i]: ports[i],
+    };
+    // A few probes in parallel: each can block for the full timeout, so
+    // serial testing took N × 5 s.
+    Future<void> worker() async {
+      while (queue.isNotEmpty) {
+        // Connecting mid-run used to make measureLatency throw an uncaught
+        // StateError out of this un-awaited loop.
+        if (isConnected) return;
+        final id = queue.removeAt(0);
+        try {
+          await measureLatency(id, persist: false, port: portById[id]);
+        } catch (_) {
+          // measureLatency records its own failure on the node.
+        }
+      }
+    }
+
+    try {
+      await Future.wait(List.generate(4, (_) => worker()));
+    } finally {
+      _measuringAll = false;
+      // One write for the whole batch instead of re-encoding the snapshot
+      // after every node.
+      await _persist();
+      notifyListeners();
     }
   }
 
   Future<void> updateRouting(RoutingSettings value) async {
-    if (isConnected) {
-      throw StateError('请先断开连接再修改路由设置');
+    if (_tunnelStatus == TunnelStatus.connecting ||
+        _tunnelStatus == TunnelStatus.disconnecting) {
+      throw StateError('正在切换连接状态，请稍候');
     }
+    final wasConnected = _tunnelStatus == TunnelStatus.connected;
     _routing = value;
     await _persist();
+    // The routing page is rebuilt with fresh state on save, so report here.
+    _lastMessage = wasConnected ? '路由设置已保存，正在重新连接' : '路由设置已保存';
     notifyListeners();
+    // Apply immediately instead of making the user disconnect first.
+    if (wasConnected) await _restartTunnel();
   }
 
   Future<String?> exportBackup() => _storage.exportBackup(snapshot);
@@ -490,8 +595,22 @@ class AppController extends ChangeNotifier {
 
   Future<void> _persist() => _storage.save(snapshot);
 
+  Future<List<int>> _freePorts(int count) async {
+    final response = await _bridge.invoke('getFreePorts', {'count': count});
+    response.requireSuccess();
+    final ports = ((response.data! as Map)['ports'] as List)
+        .map((port) => (port as num).toInt())
+        .toList();
+    if (ports.isEmpty) throw const XrayException('没有可用的本地端口');
+    return ports;
+  }
+
   void _setBusy(bool value) {
-    _busy = value;
+    if (value) {
+      _busyCount++;
+    } else if (_busyCount > 0) {
+      _busyCount--;
+    }
     notifyListeners();
   }
 
@@ -507,7 +626,9 @@ class AppController extends ChangeNotifier {
       case 'disconnecting':
         _tunnelStatus = TunnelStatus.disconnecting;
       case 'disconnected':
+        _disconnectFallback?.cancel();
         _tunnelStatus = TunnelStatus.disconnected;
+        _lastMessage = '连接已断开';
       case 'error':
         _tunnelStatus = TunnelStatus.error;
         _lastMessage = event.message ?? 'VPN 原生服务失败';
@@ -517,6 +638,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disconnectFallback?.cancel();
     unawaited(_eventSubscription.cancel());
     _subscriptionService.close();
     _bridge.dispose();

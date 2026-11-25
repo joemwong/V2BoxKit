@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
@@ -187,16 +188,25 @@ class _NativeXray {
 class WindowsXrayBridge implements XrayBridge {
   final StreamController<TunnelEvent> _events =
       StreamController<TunnelEvent>.broadcast();
-  _NativeXray? _native;
 
-  _NativeXray get _runtime {
-    try {
-      return _native ??= _NativeXray();
-    } on ArgumentError catch (error) {
-      throw XrayException(
-        '找不到 libXray.dll。请先运行 tool/fetch_windows_runtime.ps1：$error',
-      );
-    }
+  /// libXray calls block (ping waits for its timeout, runXrayFromJson creates
+  /// the Wintun adapter). Running them on the UI isolate froze the window, so
+  /// each call runs on a short-lived background isolate. The Xray instance
+  /// lives inside the process-wide DLL, so start/stop/state still share it.
+  static Future<XrayInvokeResponse> _call(
+    String method, [
+    Map<String, Object?> payload = const {},
+  ]) {
+    return Isolate.run(() {
+      try {
+        return _NativeXray().call(method, payload);
+      } on ArgumentError catch (error) {
+        // DynamicLibrary.open throws ArgumentError when the DLL is missing.
+        throw XrayException(
+          '找不到 libXray.dll。请先运行 tool/fetch_windows_runtime.ps1：$error',
+        );
+      }
+    });
   }
 
   @override
@@ -206,8 +216,8 @@ class WindowsXrayBridge implements XrayBridge {
   Future<XrayInvokeResponse> invoke(
     String method, [
     Map<String, Object?> payload = const {},
-  ]) async {
-    return _runtime.call(method, payload);
+  ]) {
+    return _call(method, payload);
   }
 
   @override
@@ -217,7 +227,7 @@ class WindowsXrayBridge implements XrayBridge {
   Future<void> start(String configJson, TunnelOptions options) async {
     _events.add(const TunnelEvent('connecting'));
     try {
-      final response = _runtime.call('runXrayFromJson', {
+      final response = await _call('runXrayFromJson', {
         'configJSON': configJson,
       });
       response.requireSuccess();
@@ -231,7 +241,7 @@ class WindowsXrayBridge implements XrayBridge {
   @override
   Future<void> stop() async {
     _events.add(const TunnelEvent('disconnecting'));
-    final response = _runtime.call('stopXray');
+    final response = await _call('stopXray');
     response.requireSuccess();
     _events.add(const TunnelEvent('disconnected'));
   }
@@ -239,7 +249,7 @@ class WindowsXrayBridge implements XrayBridge {
   @override
   Future<bool> isRunning() async {
     try {
-      final response = _runtime.call('getXrayState');
+      final response = await _call('getXrayState');
       if (!response.success || response.data is! Map) return false;
       return (response.data! as Map)['running'] as bool? ?? false;
     } catch (_) {

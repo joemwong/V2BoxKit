@@ -9,7 +9,8 @@ Wintun，二者都通过固定版本 XTLS `libXray` 运行 Xray-core。
 - Android 手机/平板与 Windows 自适应界面
 - VLESS、VMess、Trojan、Shadowsocks、Hysteria2 分享链接和 Base64 订阅
 - HTTPS 订阅、ETag/Last-Modified 条件更新和失败回滚
-- 节点搜索、收藏、置顶、选择与真实代理延迟测试
+- 节点搜索、收藏、置顶、选择与真实代理延迟测试（最多 4 个并行）
+- 已连接时切换节点、保存路由设置后自动重连
 - 全局、规则、直连三种模式
 - 私有网络绕过、域名/IP 自定义规则、代理/直连/拦截动作
 - 自定义 DNS、MTU，以及带认证的本机/局域网 SOCKS5 与 HTTP 分享

@@ -17,7 +17,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : FlutterActivity() {
-    private val executor = Executors.newSingleThreadExecutor()
+    // Latency probes block for their whole timeout; a small pool lets the Dart
+    // side test several nodes at once instead of strictly one after another.
+    private val executor = Executors.newFixedThreadPool(4)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingPermissionResult: MethodChannel.Result? = null
 

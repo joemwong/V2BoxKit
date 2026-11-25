@@ -185,4 +185,41 @@ void main() {
     expect((base['outbounds']! as List), hasLength(1));
     expect(((base['outbounds']! as List).single as Map)['tag'], 'generated');
   });
+
+  test('latency probe has only a loopback socks inbound and the node', () {
+    final config = builder.buildLatencyProbe(base, 23456);
+
+    final inbounds = config['inbounds']! as List;
+    expect(inbounds, hasLength(1));
+    expect((inbounds.single as Map)['protocol'], 'socks');
+    expect((inbounds.single as Map)['listen'], '127.0.0.1');
+    expect((inbounds.single as Map)['port'], 23456);
+    expect(config.containsKey('routing'), isFalse);
+    final outbounds = config['outbounds']! as List;
+    expect(outbounds, hasLength(1));
+    expect((outbounds.single as Map)['tag'], 'proxy');
+  });
+
+  test('keeps regexp case and known prefixes in domain rules', () {
+    final config = builder.build(
+      base,
+      const RoutingSettings(
+        customRules: [
+          RoutingRule(
+            id: 'r',
+            name: 'r',
+            kind: RoutingRuleKind.domain,
+            action: RoutingRuleAction.direct,
+            values: [r'regexp:\D+\.Example$', 'Keyword:Ads', 'Example.COM'],
+          ),
+        ],
+      ),
+    );
+    final rules = (config['routing']! as Map)['rules'] as List;
+    expect((rules.first as Map)['domain'], [
+      r'regexp:\D+\.Example$',
+      'keyword:ads',
+      'domain:example.com',
+    ]);
+  });
 }

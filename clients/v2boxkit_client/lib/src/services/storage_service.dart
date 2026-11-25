@@ -8,6 +8,7 @@ import '../model/models.dart';
 
 class StorageService {
   static const _snapshotKey = 'v2boxkit.snapshot.v1';
+  static const _corruptKey = 'v2boxkit.snapshot.v1.corrupt';
   static const _backupType = XTypeGroup(
     label: 'V2BoxKit backup',
     extensions: ['v2boxkit'],
@@ -18,14 +19,22 @@ class StorageService {
     final preferences = await SharedPreferences.getInstance();
     final value = preferences.getString(_snapshotKey);
     if (value == null || value.isEmpty) return const AppSnapshot();
-    final decoded = jsonDecode(value);
-    if (decoded is! Map) throw const FormatException('本地配置格式错误');
-    return AppSnapshot.fromJson(decoded.cast<String, Object?>());
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is! Map) throw const FormatException('本地配置格式错误');
+      return AppSnapshot.fromJson(decoded.cast<String, Object?>());
+    } catch (_) {
+      // The caller falls back to defaults and the next save overwrites this
+      // key, so keep the unreadable original for manual recovery.
+      await preferences.setString(_corruptKey, value);
+      rethrow;
+    }
   }
 
   Future<void> save(AppSnapshot snapshot) async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_snapshotKey, encode(snapshot));
+    // Compact JSON for the hot path; backups stay indented for readability.
+    await preferences.setString(_snapshotKey, jsonEncode(snapshot.toJson()));
   }
 
   String encode(AppSnapshot snapshot) {

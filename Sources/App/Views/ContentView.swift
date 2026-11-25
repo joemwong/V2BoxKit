@@ -11,14 +11,17 @@ struct ContentView: View {
   }
 
   @EnvironmentObject private var nodeStore: NodeStore
+  @EnvironmentObject private var tunnelManager: TunnelManager
   @State private var presentedSheet: PresentedSheet?
+  @State private var routingWhenSheetOpened: RoutingSettings?
   @State private var searchText = ""
   @State private var importMessage: String?
 
   private var groupedNodes: [(String, [ProxyNode])] {
     let groups = Dictionary(
       grouping: nodeStore.visibleNodes(searchText: searchText), by: \.groupName)
-    return groups.keys.sorted().map { ($0, groups[$0] ?? []) }
+    // Use the store's ordering ("手动导入" first, natural sort) instead of raw string order.
+    return nodeStore.groups.compactMap { name in groups[name].map { (name, $0) } }
   }
 
   var body: some View {
@@ -94,7 +97,10 @@ struct ContentView: View {
         ContentUnavailableView("请选择节点", systemImage: "server.rack")
       }
     }
-    .sheet(item: $presentedSheet) { sheet in
+    .onChange(of: presentedSheet) { _, sheet in
+      if sheet != nil { routingWhenSheetOpened = nodeStore.routing }
+    }
+    .sheet(item: $presentedSheet, onDismiss: applyRoutingChangesIfConnected) { sheet in
       switch sheet {
       case .addLink:
         AddLinkSheet()
@@ -116,7 +122,7 @@ struct ContentView: View {
       }
     }
     .alert(
-      "URL 导入",
+      "提示",
       isPresented: Binding(
         get: { importMessage != nil },
         set: { if !$0 { importMessage = nil } }
@@ -125,6 +131,25 @@ struct ContentView: View {
       Button("好") { importMessage = nil }
     } message: {
       Text(importMessage ?? "")
+    }
+  }
+
+  /// Routing/DNS/sharing edits used to take effect only after a manual
+  /// reconnect. Apply them once the settings sheet closes.
+  private func applyRoutingChangesIfConnected() {
+    defer { routingWhenSheetOpened = nil }
+    guard let before = routingWhenSheetOpened, before != nodeStore.routing,
+      tunnelManager.isConnected,
+      let node = nodeStore.nodes.first(where: { $0.id == tunnelManager.activeNodeID })
+        ?? nodeStore.selectedNode
+    else { return }
+    Task {
+      do {
+        try await tunnelManager.reconnect(
+          node: node, routing: nodeStore.routing, onDemand: nodeStore.settings.onDemand)
+      } catch {
+        importMessage = "应用新设置失败：\(error.localizedDescription)"
+      }
     }
   }
 }

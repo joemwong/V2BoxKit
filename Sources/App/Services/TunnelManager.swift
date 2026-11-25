@@ -18,6 +18,8 @@ final class TunnelManager: ObservableObject {
 
   @Published private(set) var status: NEVPNStatus = .invalid
   @Published private(set) var isWorking = false
+  /// Node baked into the saved VPN configuration (the one the tunnel runs).
+  @Published private(set) var activeNodeID: UUID?
 
   private var manager: NETunnelProviderManager?
   private var statusObserver: NSObjectProtocol?
@@ -82,7 +84,65 @@ final class TunnelManager: ObservableObject {
   ) async throws {
     isWorking = true
     defer { isWorking = false }
+    let activeManager = try await saveConfiguration(node: node, routing: routing, onDemand: onDemand)
+    try start(activeManager)
+  }
 
+  /// Switches a running tunnel to another node or new routing settings without
+  /// making the user disconnect and reconnect by hand.
+  func reconnect(
+    node: ProxyNode,
+    routing: RoutingSettings,
+    onDemand: OnDemandSettings
+  ) async throws {
+    guard isConnected, manager != nil else {
+      try await connect(node: node, routing: routing, onDemand: onDemand)
+      return
+    }
+    isWorking = true
+    defer { isWorking = false }
+    // Save first: if on-demand restarts the tunnel after the stop below, it
+    // already picks up the new configuration.
+    let activeManager = try await saveConfiguration(node: node, routing: routing, onDemand: onDemand)
+    activeManager.connection.stopVPNTunnel()
+    await waitForStatus(in: [.disconnected, .invalid, .connecting, .connected], after: .disconnecting)
+    if activeManager.connection.status == .disconnected || activeManager.connection.status == .invalid {
+      try start(activeManager)
+    }
+    DiagnosticLogStore.shared.append(.info, category: "tunnel", message: "已切换到节点：\(node.name)")
+  }
+
+  private func start(_ activeManager: NETunnelProviderManager) throws {
+    do {
+      try activeManager.connection.startVPNTunnel()
+      DiagnosticLogStore.shared.append(.info, category: "tunnel", message: "已请求启动 VPN")
+    } catch {
+      DiagnosticLogStore.shared.append(
+        .error, category: "tunnel", message: "启动 VPN 失败：\(error.localizedDescription)")
+      throw error
+    }
+    refreshStatus()
+  }
+
+  /// Waits (max ~8 s) until the connection has left `transient` and reached one
+  /// of `targets`. Polling is enough here; status notifications also update UI.
+  private func waitForStatus(in targets: Set<NEVPNStatus>, after transient: NEVPNStatus) async {
+    let deadline = Date().addingTimeInterval(8)
+    var sawTransient = false
+    while Date() < deadline {
+      let current = manager?.connection.status ?? .invalid
+      if current == transient { sawTransient = true }
+      // Ignore the still-connected state seen right after stop was requested.
+      if targets.contains(current), sawTransient || current != .connected { return }
+      try? await Task.sleep(for: .milliseconds(100))
+    }
+  }
+
+  private func saveConfiguration(
+    node: ProxyNode,
+    routing: RoutingSettings,
+    onDemand: OnDemandSettings
+  ) async throws -> NETunnelProviderManager {
     let activeManager = manager ?? NETunnelProviderManager()
     let nodeData = try JSONEncoder().encode(node)
     let routingData = try JSONEncoder().encode(routing)
@@ -95,6 +155,11 @@ final class TunnelManager: ObservableObject {
       "routing": routingData.base64EncodedString(),
     ]
     tunnelProtocol.includeAllNetworks = true
+    // With includeAllNetworks, iOS ignores the provider's excludedRoutes for LAN traffic, so the
+    // "bypass private networks" option (and direct mode) also needs this switch to keep LAN
+    // devices (printers, AirPlay, NAS) reachable.
+    tunnelProtocol.excludeLocalNetworks =
+      routing.mode == .direct || (routing.mode == .rule && routing.bypassPrivateNetworks)
 
     activeManager.localizedDescription = AppConstants.vpnDescription
     activeManager.protocolConfiguration = tunnelProtocol
@@ -104,15 +169,8 @@ final class TunnelManager: ObservableObject {
     try await load(activeManager)
 
     manager = activeManager
-    do {
-      try activeManager.connection.startVPNTunnel()
-      DiagnosticLogStore.shared.append(.info, category: "tunnel", message: "已请求启动 VPN")
-    } catch {
-      DiagnosticLogStore.shared.append(
-        .error, category: "tunnel", message: "启动 VPN 失败：\(error.localizedDescription)")
-      throw error
-    }
     refreshStatus()
+    return activeManager
   }
 
   func runtimeInfo() async throws -> String {
@@ -161,6 +219,18 @@ final class TunnelManager: ObservableObject {
 
   private func refreshStatus() {
     status = manager?.connection.status ?? .invalid
+    activeNodeID = Self.configuredNodeID(of: manager)
+  }
+
+  private static func configuredNodeID(of manager: NETunnelProviderManager?) -> UUID? {
+    guard
+      let config = (manager?.protocolConfiguration as? NETunnelProviderProtocol)?
+        .providerConfiguration,
+      let value = config["node"] as? String,
+      let data = Data(base64Encoded: value),
+      let node = try? JSONDecoder().decode(ProxyNode.self, from: data)
+    else { return nil }
+    return node.id
   }
 
   private func applyOnDemand(
